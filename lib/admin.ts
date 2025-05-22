@@ -1,22 +1,20 @@
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
-import { checkIsAdmin } from "./admin"
-import { db } from "./firebase-config"
-import type { User } from "@/lib/types"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "./firebase/firebase-config"
 
-// Get all users (admin only)
-export async function getAllUsers(): Promise<User[]> {
+// Check if a user is an admin
+export async function checkIsAdmin(userId: string): Promise<boolean> {
   try {
-    const usersRef = collection(db, "users")
-    const snapshot = await getDocs(usersRef)
+    const userRef = doc(db, "users", userId)
+    const userDoc = await getDoc(userRef)
 
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-    })) as User[]
+    if (userDoc.exists()) {
+      return userDoc.data().role === "admin"
+    }
+
+    return false
   } catch (error) {
-    console.error("Error getting users:", error)
-    return []
+    console.error("Error checking admin status:", error)
+    return false
   }
 }
 
@@ -32,14 +30,14 @@ export async function promoteToAdmin(userId: string, currentUserId: string): Pro
 
     const userRef = doc(db, "users", userId)
 
-    await updateDoc(userRef, {
+    await userRef.update({
       role: "admin",
     })
 
     return true
   } catch (error) {
     console.error("Error promoting user to admin:", error)
-    throw error
+    return false
   }
 }
 
@@ -53,20 +51,15 @@ export async function demoteFromAdmin(userId: string, currentUserId: string): Pr
       throw new Error("Only admins can demote users")
     }
 
-    // Prevent demoting yourself
-    if (userId === currentUserId) {
-      throw new Error("You cannot demote yourself")
-    }
-
     const userRef = doc(db, "users", userId)
 
-    await updateDoc(userRef, {
+    await userRef.update({
       role: "user",
     })
 
     return true
   } catch (error) {
     console.error("Error demoting admin:", error)
-    throw error
+    return false
   }
 }

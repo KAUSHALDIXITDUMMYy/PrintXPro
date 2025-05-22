@@ -15,7 +15,7 @@ import {
   deleteDoc,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
-import { db , storage } from "./firebase-config"
+import { db, storage } from "./firebase/firebase-config"
 import type { Product } from "@/lib/types"
 
 // Get a single product by ID

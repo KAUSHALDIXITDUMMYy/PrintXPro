@@ -1,9 +1,9 @@
-import { getFirestore, doc, getDoc } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "./firebase-config"
 
 // Check if a user is an admin
 export async function checkIsAdmin(userId: string): Promise<boolean> {
   try {
-    const db = getFirestore()
     const userRef = doc(db, "users", userId)
     const userDoc = await getDoc(userRef)
 
@@ -28,7 +28,6 @@ export async function promoteToAdmin(userId: string, currentUserId: string): Pro
       throw new Error("Only admins can promote users")
     }
 
-    const db = getFirestore()
     const userRef = doc(db, "users", userId)
 
     await userRef.update({
@@ -52,7 +51,6 @@ export async function demoteFromAdmin(userId: string, currentUserId: string): Pr
       throw new Error("Only admins can demote users")
     }
 
-    const db = getFirestore()
     const userRef = doc(db, "users", userId)
 
     await userRef.update({

@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   type Timestamp,
 } from "firebase/firestore"
-import { db } from "./firebase-config"
+import { db } from "./firebase/firebase-config"
 
 interface OrderProduct {
   productId: string

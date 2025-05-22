@@ -13,7 +13,20 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 }
 
 export async function CategoryShowcase() {
-  const categories = await getCategories()
+  let categories = []
+
+  try {
+    categories = await getCategories()
+  } catch (error) {
+    console.error("Error getting categories:", error)
+    // Return placeholder categories if there's an error
+    categories = [
+      { name: "Toys", count: 0 },
+      { name: "Decor", count: 0 },
+      { name: "Industrial", count: 0 },
+      { name: "Personalized", count: 0 },
+    ]
+  }
 
   return (
     <section className="py-12">

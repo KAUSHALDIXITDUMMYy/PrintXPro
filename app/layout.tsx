@@ -13,7 +13,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "PrintXpro.com | Custom 3D Printed Models",
   description: "Premium custom-designed 3D printed models for all your needs",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({

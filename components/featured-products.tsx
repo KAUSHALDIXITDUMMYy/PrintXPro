@@ -6,7 +6,44 @@ import { formatCurrency } from "@/lib/utils"
 import { Star, ChevronRight } from "lucide-react"
 
 export async function FeaturedProducts() {
-  const products = await getFeaturedProducts()
+  let products = []
+
+  try {
+    products = await getFeaturedProducts()
+  } catch (error) {
+    console.error("Error getting featured products:", error)
+    // Return empty products array if there's an error
+    products = []
+  }
+
+  // If no products are available, show a placeholder
+  if (products.length === 0) {
+    return (
+      <section className="py-12">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-3xl font-bold">Featured Products</h2>
+          <Button variant="ghost" asChild>
+            <Link href="/products" className="flex items-center">
+              View All <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card rounded-lg overflow-hidden shadow-sm animate-pulse">
+              <div className="aspect-square bg-muted"></div>
+              <div className="p-4 space-y-3">
+                <div className="h-5 bg-muted rounded w-3/4"></div>
+                <div className="h-4 bg-muted rounded w-1/4"></div>
+                <div className="h-4 bg-muted rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="py-12">

@@ -1,6 +1,6 @@
 import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore"
 import { v4 as uuidv4 } from "uuid"
-import { db } from "./firebase-config"
+import { db } from "./firebase/firebase-config"
 
 interface AddressInput {
   name: string

@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
-import { db } from "./firebase-config"
+import { db } from "./firebase/firebase-config"
 
 interface UserData {
   name: string

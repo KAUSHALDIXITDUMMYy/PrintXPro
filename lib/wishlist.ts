@@ -1,6 +1,6 @@
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore"
 import { getProductById } from "./products"
-import { db } from "./firebase-config"
+import { db } from "./firebase/firebase-config"
 import type { Product } from "@/lib/types"
 
 // Add a product to user's wishlist
