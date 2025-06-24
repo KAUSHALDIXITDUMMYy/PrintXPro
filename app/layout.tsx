@@ -25,9 +25,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <FirebaseProvider>
-            <div className="flex min-h-screen flex-col">
+            <div className="flex min-h-screen flex-col w-full">
               <Header />
-              <main className="flex-1">{children}</main>
+              <main className="flex-1 w-full">{children}</main>
               <Footer />
             </div>
             <Toaster />

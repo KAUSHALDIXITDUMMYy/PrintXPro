@@ -1,6 +1,6 @@
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 import { checkIsAdmin } from "./admin"
-import { db } from "./firebase/firebase-config"
+import { db } from "./firebase-config"
 import type { User } from "@/lib/types"
 
 // Get all users (admin only)

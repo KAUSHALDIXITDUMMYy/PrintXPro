@@ -10,6 +10,21 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Full width container utilities */
+  .container-full {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  @media (min-width: 1280px) {
+    .container-full {
+      max-width: none;
+    }
+  }
 }
 
 @layer base {
@@ -84,21 +99,46 @@ body {
   }
 }
 
-/* Add this animation for the hero section */
+/* Improved animation for the hero section */
 @keyframes float {
   0% {
-    transform: translateY(0px);
+    transform: translateY(0px) rotate(0deg);
   }
-  50% {
-    transform: translateY(-20px);
+  33% {
+    transform: translateY(-15px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(-5px) rotate(-1deg);
   }
   100% {
-    transform: translateY(0px);
+    transform: translateY(0px) rotate(0deg);
   }
 }
 
 .animate-float {
-  animation: float 6s ease-in-out infinite;
+  animation: float 8s ease-in-out infinite;
+  /* Ensure the animation stays within its container */
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive adjustments for the floating animation */
+@media (max-width: 768px) {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0% {
+      transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(0.5deg);
+    }
+    100% {
+      transform: translateY(0px) rotate(0deg);
+    }
+  }
 }
 
 @layer base {
@@ -107,5 +147,34 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  html {
+    width: 100%;
+  }
+}
+
+/* Ensure proper stacking context */
+.hero-section {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Prevent overflow issues on mobile */
+@media (max-width: 640px) {
+  .animate-float {
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
+
+/* Full width layout for large screens */
+@media (min-width: 1536px) {
+  .container {
+    max-width: none;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }

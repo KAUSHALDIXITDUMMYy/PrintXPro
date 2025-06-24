@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AdminProductsTab } from "@/components/admin/admin-products-tab"
 import { AdminOrdersTab } from "@/components/admin/admin-orders-tab"
 import { AdminUsersTab } from "@/components/admin/admin-users-tab"
+import { AdminMessagesTab } from "@/components/admin-messages-tab"
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("products")
@@ -14,10 +15,11 @@ export function AdminDashboard() {
       <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
 
       <Tabs defaultValue="products" value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="space-y-4">
@@ -30,6 +32,10 @@ export function AdminDashboard() {
 
         <TabsContent value="users" className="space-y-4">
           <AdminUsersTab />
+        </TabsContent>
+
+        <TabsContent value="messages" className="space-y-4">
+          <AdminMessagesTab />
         </TabsContent>
       </Tabs>
     </div>

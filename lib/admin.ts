@@ -1,5 +1,5 @@
 import { doc, getDoc } from "firebase/firestore"
-import { db } from "./firebase/firebase-config"
+import { db } from "./firebase-config"
 
 // Check if a user is an admin
 export async function checkIsAdmin(userId: string): Promise<boolean> {

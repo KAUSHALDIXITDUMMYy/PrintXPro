@@ -16,6 +16,12 @@ import { createOrder } from "@/lib/firebase/orders"
 import { formatCurrency } from "@/lib/utils"
 import { CheckCircle2, CreditCard, Truck, AlertCircle } from "lucide-react"
 
+declare global {
+  interface Window {
+    Razorpay: any
+  }
+}
+
 export default function CheckoutPage() {
   const { cart, clearCart } = useCart()
   const { user } = useAuth()
@@ -23,6 +29,7 @@ export default function CheckoutPage() {
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -39,14 +46,37 @@ export default function CheckoutPage() {
   useEffect(() => {
     setIsClient(true)
 
+    // Load Razorpay script
+    const script = document.createElement("script")
+    script.src = "https://checkout.razorpay.com/v1/checkout.js"
+    script.onload = () => setRazorpayLoaded(true)
+    script.onerror = () => {
+      console.error("Failed to load Razorpay script")
+      toast({
+        title: "Payment Error",
+        description: "Failed to load payment gateway. Please try again.",
+        variant: "destructive",
+      })
+    }
+    document.body.appendChild(script)
+
     // Pre-fill email if user is logged in
     if (user) {
       setFormData((prev) => ({
         ...prev,
         email: user.email || "",
+        name: user.displayName || "",
       }))
     }
-  }, [user])
+
+    return () => {
+      // Cleanup script
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')
+      if (existingScript) {
+        document.body.removeChild(existingScript)
+      }
+    }
+  }, [user, toast])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -61,6 +91,75 @@ export default function CheckoutPage() {
       ...prev,
       paymentMethod: value,
     }))
+  }
+
+  const initiateRazorpayPayment = (orderId: string, amount: number) => {
+    if (!razorpayLoaded || !window.Razorpay) {
+      toast({
+        title: "Payment Error",
+        description: "Payment gateway not loaded. Please refresh and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const options = {
+      key: "rzp_test_2sjuJ9vKAX4qoB", // Your Razorpay key ID
+      amount: amount * 100, // Amount in paise
+      currency: "INR",
+      name: "PrintXpro.com",
+      description: "3D Printing Order",
+      order_id: orderId, // This should be generated from your backend
+      handler: async (response: any) => {
+        try {
+          // Payment successful
+          console.log("Payment successful:", response)
+
+          // Clear cart after successful payment
+          clearCart()
+
+          toast({
+            title: "Payment Successful!",
+            description: `Payment ID: ${response.razorpay_payment_id}`,
+          })
+
+          // Redirect to order confirmation
+          router.push(`/orders/${orderId}`)
+        } catch (error) {
+          console.error("Payment verification error:", error)
+          toast({
+            title: "Payment Verification Failed",
+            description: "Please contact support with your payment ID.",
+            variant: "destructive",
+          })
+        }
+      },
+      prefill: {
+        name: formData.name,
+        email: formData.email,
+        contact: formData.phone,
+      },
+      notes: {
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+      },
+      theme: {
+        color: "#000000",
+      },
+      modal: {
+        ondismiss: () => {
+          toast({
+            title: "Payment Cancelled",
+            description: "You can complete the payment later from your orders page.",
+          })
+        },
+      },
+    }
+
+    const rzp = new window.Razorpay(options)
+    rzp.open()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,6 +188,8 @@ export default function CheckoutPage() {
     try {
       setIsSubmitting(true)
 
+      const totalAmount = cart.subtotal > 2000 ? cart.subtotal : cart.subtotal + 150
+
       // Create order in Firestore
       const order = await createOrder({
         userId: user.uid,
@@ -99,10 +200,11 @@ export default function CheckoutPage() {
           quantity: item.quantity,
           imageUrl: item.imageUrl,
         })),
-        totalAmount: cart.subtotal > 2000 ? cart.subtotal : cart.subtotal + 150,
+        totalAmount,
         shippingFee: cart.subtotal > 2000 ? 0 : 150,
         status: "pending",
         paymentMethod: formData.paymentMethod,
+        paymentStatus: formData.paymentMethod === "card" ? "pending" : "pending",
         address: {
           name: formData.name,
           email: formData.email,
@@ -116,17 +218,18 @@ export default function CheckoutPage() {
         timestamp: new Date(),
       })
 
-      // Clear cart after successful order
-      clearCart()
-
-      // Show success message
-      toast({
-        title: "Order placed successfully!",
-        description: `Your order #${order.id.slice(0, 8)} has been placed.`,
-      })
-
-      // Redirect to order confirmation page
-      router.push(`/orders/${order.id}`)
+      if (formData.paymentMethod === "card") {
+        // Initiate Razorpay payment
+        initiateRazorpayPayment(order.id, totalAmount)
+      } else {
+        // Cash on Delivery
+        clearCart()
+        toast({
+          title: "Order placed successfully!",
+          description: `Your order #${order.id.slice(0, 8)} has been placed.`,
+        })
+        router.push(`/orders/${order.id}`)
+      }
     } catch (error) {
       console.error("Error placing order:", error)
       toast({
@@ -230,7 +333,7 @@ export default function CheckoutPage() {
                 <RadioGroupItem value="card" id="card" />
                 <Label htmlFor="card" className="flex items-center gap-2 cursor-pointer">
                   <CreditCard className="h-5 w-5" />
-                  <span>Credit/Debit Card</span>
+                  <span>Credit/Debit Card (Razorpay)</span>
                 </Label>
               </div>
 
@@ -246,7 +349,7 @@ export default function CheckoutPage() {
             {formData.paymentMethod === "card" && (
               <div className="mt-4 p-4 bg-muted rounded-md">
                 <p className="text-sm text-muted-foreground">
-                  This is a demo application. No actual payment will be processed.
+                  You will be redirected to Razorpay's secure payment gateway to complete your payment.
                 </p>
               </div>
             )}
@@ -274,7 +377,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
+            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting || !razorpayLoaded}>
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>

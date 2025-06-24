@@ -10,7 +10,7 @@ import {
   getDoc,
   updateDoc,
 } from "firebase/firestore"
-import { db } from "./firebase/firebase-config"
+import { db } from "./firebase-config"
 import type { Review } from "@/lib/types"
 
 // Get reviews for a product
