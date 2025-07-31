@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -15,6 +13,7 @@ import { useAuth } from "@/lib/firebase/auth-context"
 import { createOrder } from "@/lib/firebase/orders"
 import { formatCurrency } from "@/lib/utils"
 import { CheckCircle2, CreditCard, Truck, AlertCircle } from "lucide-react"
+import Link from "next/link"
 
 declare global {
   interface Window {
@@ -27,7 +26,7 @@ export default function CheckoutPage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
-  const [isClient, setIsClient] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [razorpayLoaded, setRazorpayLoaded] = useState(false)
 
@@ -44,11 +43,12 @@ export default function CheckoutPage() {
   })
 
   useEffect(() => {
-    setIsClient(true)
+    setIsMounted(true)
 
-    // Load Razorpay script
+    // Load Razorpay script only on client side
     const script = document.createElement("script")
     script.src = "https://checkout.razorpay.com/v1/checkout.js"
+    script.async = true
     script.onload = () => setRazorpayLoaded(true)
     script.onerror = () => {
       console.error("Failed to load Razorpay script")
@@ -60,41 +60,42 @@ export default function CheckoutPage() {
     }
     document.body.appendChild(script)
 
-    // Pre-fill email if user is logged in
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        email: user.email || "",
-        name: user.displayName || "",
-      }))
-    }
-
     return () => {
-      // Cleanup script
       const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')
       if (existingScript) {
         document.body.removeChild(existingScript)
       }
     }
-  }, [user, toast])
+  }, [toast])
+
+  // Initialize form data after mount
+  useEffect(() => {
+    if (isMounted && user) {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || "",
+        name: user.displayName || "",
+      }))
+    }
+  }, [isMounted, user])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value,
     }))
   }
 
   const handlePaymentMethodChange = (value: string) => {
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       paymentMethod: value,
     }))
   }
 
   const initiateRazorpayPayment = (orderId: string, amount: number) => {
-    if (!razorpayLoaded || !window.Razorpay) {
+    if (!isMounted || !razorpayLoaded || !window.Razorpay) {
       toast({
         title: "Payment Error",
         description: "Payment gateway not loaded. Please refresh and try again.",
@@ -104,26 +105,19 @@ export default function CheckoutPage() {
     }
 
     const options = {
-      key: "rzp_test_2sjuJ9vKAX4qoB", // Your Razorpay key ID
-      amount: amount * 100, // Amount in paise
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY || "rzp_test_2sjuJ9vKAX4qoB",
+      amount: amount * 100,
       currency: "INR",
-      name: "PrintXpro.com",
+      name: "PrintCraft",
       description: "3D Printing Order",
-      order_id: orderId, // This should be generated from your backend
+      order_id: orderId,
       handler: async (response: any) => {
         try {
-          // Payment successful
-          console.log("Payment successful:", response)
-
-          // Clear cart after successful payment
           clearCart()
-
           toast({
             title: "Payment Successful!",
             description: `Payment ID: ${response.razorpay_payment_id}`,
           })
-
-          // Redirect to order confirmation
           router.push(`/orders/${orderId}`)
         } catch (error) {
           console.error("Payment verification error:", error)
@@ -146,7 +140,7 @@ export default function CheckoutPage() {
         pincode: formData.pincode,
       },
       theme: {
-        color: "#000000",
+        color: "#e92932",
       },
       modal: {
         ondismiss: () => {
@@ -165,6 +159,8 @@ export default function CheckoutPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    if (!isMounted) return
+
     if (!user) {
       toast({
         title: "Please sign in",
@@ -175,7 +171,7 @@ export default function CheckoutPage() {
       return
     }
 
-    if (cart.items.length === 0) {
+    if (!cart.items.length) {
       toast({
         title: "Empty cart",
         description: "Your cart is empty. Add some products before checkout.",
@@ -190,7 +186,6 @@ export default function CheckoutPage() {
 
       const totalAmount = cart.subtotal > 2000 ? cart.subtotal : cart.subtotal + 150
 
-      // Create order in Firestore
       const order = await createOrder({
         userId: user.uid,
         products: cart.items.map((item) => ({
@@ -219,10 +214,8 @@ export default function CheckoutPage() {
       })
 
       if (formData.paymentMethod === "card") {
-        // Initiate Razorpay payment
         initiateRazorpayPayment(order.id, totalAmount)
       } else {
-        // Cash on Delivery
         clearCart()
         toast({
           title: "Order placed successfully!",
@@ -242,73 +235,134 @@ export default function CheckoutPage() {
     }
   }
 
-  if (!isClient) {
+  if (!isMounted) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#e92932]"></div>
       </div>
     )
   }
 
-  if (cart.items.length === 0) {
+  if (!cart.items.length) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-[60vh] flex flex-col items-center justify-center">
-        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Your cart is empty</h1>
-        <p className="text-muted-foreground mb-6">You need to add products to your cart before checkout.</p>
-        <Button asChild>
-          <a href="/products">Browse Products</a>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+        <AlertCircle className="h-16 w-16 text-[#886364] mb-4" />
+        <h1 className="text-[#181111] text-2xl font-bold mb-2">Your cart is empty</h1>
+        <p className="text-[#886364] mb-6">You need to add products to your cart before checkout.</p>
+        <Button 
+          asChild
+          className="bg-[#e92932] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+        >
+          <Link href="/products">Browse Products</Link>
         </Button>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Checkout</h1>
+    <div className="px-4 py-5 max-w-[960px] mx-auto">
+      <div className="flex flex-wrap gap-2 p-4">
+        <Link href="/cart" className="text-[#886364] text-base font-medium leading-normal">Cart</Link>
+        <span className="text-[#886364] text-base font-medium leading-normal">/</span>
+        <Link href="/checkout" className="text-[#886364] text-base font-medium leading-normal">Information</Link>
+        <span className="text-[#886364] text-base font-medium leading-normal">/</span>
+        <span className="text-[#181111] text-base font-medium leading-normal">Shipping</span>
+      </div>
+
+      <h1 className="text-[#181111] text-[32px] font-bold leading-tight tracking-[-0.015em] mb-8">Checkout</h1>
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1">
-          <div className="bg-card rounded-lg shadow-sm p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-[#181111] text-xl font-semibold mb-4">Shipping Information</h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
+                  <Input 
+                    id="name" 
+                    name="name" 
+                    value={formData.name} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
+                  <Input 
+                    id="email" 
+                    name="email" 
+                    type="email" 
+                    value={formData.email} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+                  <Input 
+                    id="phone" 
+                    name="phone" 
+                    value={formData.phone} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="pincode">PIN Code</Label>
-                  <Input id="pincode" name="pincode" value={formData.pincode} onChange={handleChange} required />
+                  <Input 
+                    id="pincode" 
+                    name="pincode" 
+                    value={formData.pincode} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Textarea id="address" name="address" value={formData.address} onChange={handleChange} required />
+                <Textarea 
+                  id="address" 
+                  name="address" 
+                  value={formData.address} 
+                  onChange={handleChange} 
+                  required 
+                  className="bg-[#f4f0f0] border-none"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="city">City</Label>
-                  <Input id="city" name="city" value={formData.city} onChange={handleChange} required />
+                  <Input 
+                    id="city" 
+                    name="city" 
+                    value={formData.city} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="state">State</Label>
-                  <Input id="state" name="state" value={formData.state} onChange={handleChange} required />
+                  <Input 
+                    id="state" 
+                    name="state" 
+                    value={formData.state} 
+                    onChange={handleChange} 
+                    required 
+                    className="bg-[#f4f0f0] border-none h-14"
+                  />
                 </div>
               </div>
 
@@ -320,15 +374,20 @@ export default function CheckoutPage() {
                   value={formData.notes}
                   onChange={handleChange}
                   placeholder="Special instructions for delivery or product customization"
+                  className="bg-[#f4f0f0] border-none"
                 />
               </div>
             </form>
           </div>
 
-          <div className="bg-card rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-[#181111] text-xl font-semibold mb-4">Payment Method</h2>
 
-            <RadioGroup value={formData.paymentMethod} onValueChange={handlePaymentMethodChange} className="space-y-3">
+            <RadioGroup 
+              value={formData.paymentMethod} 
+              onValueChange={handlePaymentMethodChange} 
+              className="space-y-3"
+            >
               <div className="flex items-center space-x-2 border rounded-md p-3">
                 <RadioGroupItem value="card" id="card" />
                 <Label htmlFor="card" className="flex items-center gap-2 cursor-pointer">
@@ -347,8 +406,8 @@ export default function CheckoutPage() {
             </RadioGroup>
 
             {formData.paymentMethod === "card" && (
-              <div className="mt-4 p-4 bg-muted rounded-md">
-                <p className="text-sm text-muted-foreground">
+              <div className="mt-4 p-4 bg-[#f4f0f0] rounded-md">
+                <p className="text-sm text-[#886364]">
                   You will be redirected to Razorpay's secure payment gateway to complete your payment.
                 </p>
               </div>
@@ -357,27 +416,31 @@ export default function CheckoutPage() {
         </div>
 
         <div className="w-full lg:w-80">
-          <div className="bg-card rounded-lg shadow-sm p-6 sticky top-24">
-            <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 sticky top-24">
+            <h2 className="text-[#181111] text-xl font-semibold mb-4">Order Summary</h2>
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Items ({cart.items.length})</span>
-                <span>{formatCurrency(cart.subtotal)}</span>
+                <span className="text-[#886364]">Items ({cart.items.length})</span>
+                <span className="text-[#181111]">{formatCurrency(cart.subtotal)}</span>
               </div>
 
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Shipping</span>
-                <span>{cart.subtotal > 2000 ? "Free" : formatCurrency(150)}</span>
+                <span className="text-[#886364]">Shipping</span>
+                <span className="text-[#181111]">{cart.subtotal > 2000 ? "Free" : formatCurrency(150)}</span>
               </div>
 
-              <div className="border-t pt-3 flex justify-between font-semibold">
-                <span>Total</span>
-                <span>{formatCurrency(cart.subtotal > 2000 ? cart.subtotal : cart.subtotal + 150)}</span>
+              <div className="border-t border-[#e5dcdc] pt-3 flex justify-between font-semibold">
+                <span className="text-[#181111]">Total</span>
+                <span className="text-[#181111]">{formatCurrency(cart.subtotal > 2000 ? cart.subtotal : cart.subtotal + 150)}</span>
               </div>
             </div>
 
-            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting || !razorpayLoaded}>
+            <Button 
+              className="w-full bg-[#e92932] text-white" 
+              onClick={handleSubmit} 
+              disabled={isSubmitting || (formData.paymentMethod === "card" && !razorpayLoaded)}
+            >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
@@ -388,7 +451,7 @@ export default function CheckoutPage() {
               )}
             </Button>
 
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-[#886364]">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <span>Secure checkout</span>
             </div>
