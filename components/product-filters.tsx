@@ -3,11 +3,8 @@
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 import { formatCurrency } from "@/lib/utils"
-import { Filter, X, Star } from "lucide-react"
+import { Filter, X, ChevronDown } from "lucide-react"
 
 interface ProductFiltersProps {
   selectedCategory?: string
@@ -17,6 +14,18 @@ interface ProductFiltersProps {
 }
 
 const categories = ["Toys", "Decor", "Industrial", "Personalized", "Gadgets", "Art"]
+const priceRanges = [
+  { label: "Under $25", value: "0-25" },
+  { label: "$25 to $50", value: "25-50" },
+  { label: "$50 to $100", value: "50-100" },
+  { label: "Over $100", value: "100-5000" },
+]
+const sortOptions = [
+  { label: "Popularity", value: "popularity" },
+  { label: "Price: Low to High", value: "price-asc" },
+  { label: "Price: High to Low", value: "price-desc" },
+  { label: "Rating", value: "rating" },
+]
 
 export function ProductFilters({
   selectedCategory,
@@ -27,18 +36,6 @@ export function ProductFilters({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-
-  const [priceRange, setPriceRange] = useState<[number, number]>([selectedMinPrice, selectedMaxPrice])
-  const [rating, setRating] = useState<number | undefined>(selectedRating)
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
-
-  useEffect(() => {
-    setPriceRange([selectedMinPrice, selectedMaxPrice])
-  }, [selectedMinPrice, selectedMaxPrice])
-
-  useEffect(() => {
-    setRating(selectedRating)
-  }, [selectedRating])
 
   const createQueryString = (name: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -56,21 +53,18 @@ export function ProductFilters({
     router.push(`${pathname}?${createQueryString("category", category === selectedCategory ? null : category)}`)
   }
 
-  const handlePriceChange = (values: number[]) => {
-    setPriceRange([values[0], values[1]])
-  }
-
-  const applyPriceFilter = () => {
+  const handlePriceChange = (value: string) => {
+    const [min, max] = value.split("-").map(Number)
     const params = new URLSearchParams(searchParams.toString())
 
-    if (priceRange[0] > 0) {
-      params.set("minPrice", priceRange[0].toString())
+    if (min > 0) {
+      params.set("minPrice", min.toString())
     } else {
       params.delete("minPrice")
     }
 
-    if (priceRange[1] < 5000) {
-      params.set("maxPrice", priceRange[1].toString())
+    if (max < 5000) {
+      params.set("maxPrice", max.toString())
     } else {
       params.delete("maxPrice")
     }
@@ -78,11 +72,8 @@ export function ProductFilters({
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const handleRatingChange = (value: number) => {
-    const newRating = rating === value ? undefined : value
-    setRating(newRating)
-
-    router.push(`${pathname}?${createQueryString("rating", newRating ? newRating.toString() : null)}`)
+  const handleSortChange = (value: string) => {
+    router.push(`${pathname}?${createQueryString("sort", value)}`)
   }
 
   const clearAllFilters = () => {
@@ -92,98 +83,64 @@ export function ProductFilters({
   const hasActiveFilters = selectedCategory || selectedMinPrice > 0 || selectedMaxPrice < 5000 || selectedRating
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center md:hidden">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-          className="flex items-center gap-2"
+    <div className="flex gap-3 flex-wrap">
+      <div className="relative">
+        <select
+          value={selectedCategory || ""}
+          onChange={(e) => handleCategoryChange(e.target.value)}
+          className="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#f4f0f0] pl-4 pr-8 appearance-none"
         >
-          <Filter className="h-4 w-4" />
-          Filters
+          <option value="">Category</option>
+          {categories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="h-4 w-4 absolute right-2 top-2 pointer-events-none" />
+      </div>
+
+      <div className="relative">
+        <select
+          value={`${selectedMinPrice || 0}-${selectedMaxPrice || 5000}`}
+          onChange={(e) => handlePriceChange(e.target.value)}
+          className="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#f4f0f0] pl-4 pr-8 appearance-none"
+        >
+          <option value="0-5000">Price</option>
+          {priceRanges.map((range) => (
+            <option key={range.value} value={range.value}>
+              {range.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="h-4 w-4 absolute right-2 top-2 pointer-events-none" />
+      </div>
+
+      <div className="relative">
+        <select
+          onChange={(e) => handleSortChange(e.target.value)}
+          className="flex h-8 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-[#f4f0f0] pl-4 pr-8 appearance-none"
+        >
+          {sortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="h-4 w-4 absolute right-2 top-2 pointer-events-none" />
+      </div>
+
+      {hasActiveFilters && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAllFilters}
+          className="flex h-8 items-center gap-1 text-[#886364]"
+        >
+          <X className="h-4 w-4" />
+          Clear
         </Button>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
-            Clear All
-          </Button>
-        )}
-      </div>
-
-      <div className={`space-y-6 ${isMobileFiltersOpen ? "block" : "hidden md:block"}`}>
-        {hasActiveFilters && (
-          <div className="hidden md:flex justify-between items-center">
-            <h3 className="font-medium">Active Filters</h3>
-            <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
-              <X className="h-4 w-4 mr-1" />
-              Clear All
-            </Button>
-          </div>
-        )}
-
-        <div>
-          <h3 className="font-medium mb-3">Categories</h3>
-          <div className="space-y-2">
-            {categories.map((category) => (
-              <div key={category} className="flex items-center">
-                <Checkbox
-                  id={`category-${category}`}
-                  checked={category === selectedCategory}
-                  onCheckedChange={() => handleCategoryChange(category)}
-                />
-                <Label htmlFor={`category-${category}`} className="ml-2 text-sm cursor-pointer">
-                  {category}
-                </Label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h3 className="font-medium mb-3">Price Range</h3>
-          <Slider
-            defaultValue={[0, 5000]}
-            value={priceRange}
-            min={0}
-            max={5000}
-            step={100}
-            onValueChange={handlePriceChange}
-            className="mb-4"
-          />
-          <div className="flex items-center justify-between text-sm">
-            <span>{formatCurrency(priceRange[0])}</span>
-            <span>{formatCurrency(priceRange[1])}</span>
-          </div>
-          <Button variant="outline" size="sm" onClick={applyPriceFilter} className="w-full mt-2">
-            Apply
-          </Button>
-        </div>
-
-        <div>
-          <h3 className="font-medium mb-3">Rating</h3>
-          <div className="space-y-2">
-            {[5, 4, 3, 2, 1].map((value) => (
-              <div key={value} className="flex items-center">
-                <Checkbox
-                  id={`rating-${value}`}
-                  checked={rating === value}
-                  onCheckedChange={() => handleRatingChange(value)}
-                />
-                <Label htmlFor={`rating-${value}`} className="ml-2 text-sm cursor-pointer flex items-center">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${i < value ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
-                    />
-                  ))}
-                  <span className="ml-1">& Up</span>
-                </Label>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

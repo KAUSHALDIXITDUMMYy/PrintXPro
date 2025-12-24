@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,12 +9,10 @@ import { Search, Eye } from "lucide-react"
 import type { Order } from "@/lib/firebase/orders"
 import { getAllOrders, updateOrderStatus } from "@/lib/firebase/orders"
 import { formatCurrency, formatDate } from "@/lib/utils"
-// Add these imports at the top
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 
-// Replace the existing component with this updated version
 export function AdminOrdersTab() {
   const [orders, setOrders] = useState<Order[]>([])
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([])
@@ -32,7 +28,6 @@ export function AdminOrdersTab() {
   }, [])
 
   useEffect(() => {
-    // Apply filters whenever search query or status filter changes
     applyFilters()
   }, [searchQuery, statusFilter, orders])
 
@@ -57,12 +52,10 @@ export function AdminOrdersTab() {
   const applyFilters = () => {
     let result = [...orders]
 
-    // Apply status filter
     if (statusFilter !== "all") {
       result = result.filter((order) => order.status === statusFilter)
     }
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       result = result.filter(
@@ -93,12 +86,9 @@ export function AdminOrdersTab() {
   const handleStatusChange = async (orderId: string, status: Order["status"]) => {
     try {
       await updateOrderStatus(orderId, status)
-
-      // Update local state
       const updatedOrders = orders.map((order) => (order.id === orderId ? { ...order, status } : order))
       setOrders(updatedOrders)
 
-      // Update selected order if it's the one being viewed
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status })
       }
@@ -119,18 +109,12 @@ export function AdminOrdersTab() {
 
   const getStatusBadgeVariant = (status: Order["status"]) => {
     switch (status) {
-      case "pending":
-        return "outline"
-      case "processing":
-        return "secondary"
-      case "shipped":
-        return "default"
-      case "delivered":
-        return "success"
-      case "cancelled":
-        return "destructive"
-      default:
-        return "outline"
+      case "pending": return "outline"
+      case "processing": return "secondary"
+      case "shipped": return "default"
+      case "delivered": return "success"
+      case "cancelled": return "destructive"
+      default: return "outline"
     }
   }
 
@@ -141,10 +125,11 @@ export function AdminOrdersTab() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-[#171212] text-3xl font-bold">Orders</h1>
+        <div className="flex gap-4">
           <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] bg-[#f4f1f1] border-none">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -157,86 +142,71 @@ export function AdminOrdersTab() {
             </SelectContent>
           </Select>
 
-          {(statusFilter !== "all" || searchQuery) && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10">
-              Clear Filters
-            </Button>
-          )}
-        </div>
-
-        <form onSubmit={handleSearch} className="w-full sm:w-auto">
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-[#82686a]" />
             <Input
               type="search"
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-full sm:w-[300px]"
+              className="pl-10 bg-[#f4f1f1] border-none"
             />
           </div>
-        </form>
+        </div>
       </div>
 
-      {statusFilter !== "all" && (
-        <div className="mb-4">
-          <Badge variant={getStatusBadgeVariant(statusFilter as Order["status"]) as any} className="text-sm px-2 py-1">
-            Status: {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-          </Badge>
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
+      <div className="rounded-xl border border-[#e4dddd] overflow-hidden">
+        <Table>
+          <TableHeader className="bg-white">
+            <TableRow>
+              <TableHead>Order ID</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableHead>Order ID</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableCell colSpan={6} className="text-center py-8">
+                  No orders found
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    No orders found
+            ) : (
+              filteredOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium text-[#171212]">
+                    #{order.id.slice(0, 8).toUpperCase()}
+                  </TableCell>
+                  <TableCell className="text-[#82686a]">{order.address.name}</TableCell>
+                  <TableCell className="text-[#82686a]">{formatDate(new Date(order.timestamp as any))}</TableCell>
+                  <TableCell className="text-[#82686a]">{formatCurrency(order.totalAmount)}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      className="bg-[#f4f1f1] text-[#171212] hover:bg-[#e4dddd] w-full"
+                    >
+                      {order.status}
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleViewOrder(order)}
+                      className="text-[#82686a]"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
-              ) : (
-                filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id.slice(0, 8).toUpperCase()}</TableCell>
-                    <TableCell>{order.address.name}</TableCell>
-                    <TableCell>{formatDate(new Date(order.timestamp as any))}</TableCell>
-                    <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(order.status) as any}>{order.status}</Badge>
-                    </TableCell>
-                    <TableCell>{order.paymentMethod === "cod" ? "Cash on Delivery" : "Card"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)}>
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">View</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* View Order Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -247,10 +217,10 @@ export function AdminOrdersTab() {
 
           {selectedOrder && (
             <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between gap-4">
+              <div className="flex justify-between items-center">
                 <div>
                   <h3 className="font-semibold">Order #{selectedOrder.id.slice(0, 8).toUpperCase()}</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-[#82686a]">
                     Placed on {formatDate(new Date(selectedOrder.timestamp as any))}
                   </p>
                 </div>
@@ -261,7 +231,7 @@ export function AdminOrdersTab() {
                     value={selectedOrder.status}
                     onValueChange={(value) => handleStatusChange(selectedOrder.id, value as Order["status"])}
                   >
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[180px] bg-[#f4f1f1] border-none">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -279,7 +249,7 @@ export function AdminOrdersTab() {
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-medium mb-2">Customer Information</h4>
-                    <div className="bg-muted p-3 rounded-md">
+                    <div className="bg-[#f4f1f1] p-3 rounded-md">
                       <p>{selectedOrder.address.name}</p>
                       <p>{selectedOrder.address.email}</p>
                       <p>{selectedOrder.address.phone}</p>
@@ -288,7 +258,7 @@ export function AdminOrdersTab() {
 
                   <div>
                     <h4 className="font-medium mb-2">Shipping Address</h4>
-                    <div className="bg-muted p-3 rounded-md">
+                    <div className="bg-[#f4f1f1] p-3 rounded-md">
                       <p>{selectedOrder.address.address}</p>
                       <p>
                         {selectedOrder.address.city}, {selectedOrder.address.state}
@@ -296,25 +266,17 @@ export function AdminOrdersTab() {
                       <p>PIN: {selectedOrder.address.pincode}</p>
                     </div>
                   </div>
-
-                  <div>
-                    <h4 className="font-medium mb-2">Payment Information</h4>
-                    <div className="bg-muted p-3 rounded-md">
-                      <p>Method: {selectedOrder.paymentMethod === "cod" ? "Cash on Delivery" : "Card"}</p>
-                      <p>Status: {selectedOrder.paymentStatus || "pending"}</p>
-                    </div>
-                  </div>
                 </div>
 
                 <div>
                   <h4 className="font-medium mb-2">Order Items</h4>
-                  <div className="bg-muted p-3 rounded-md">
+                  <div className="bg-[#f4f1f1] p-3 rounded-md">
                     <ul className="divide-y">
                       {selectedOrder.products.map((item, index) => (
                         <li key={index} className="py-2 flex justify-between">
                           <div>
                             <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                            <p className="text-sm text-[#82686a]">Qty: {item.quantity}</p>
                           </div>
                           <p>{formatCurrency(item.price * item.quantity)}</p>
                         </li>
@@ -336,15 +298,6 @@ export function AdminOrdersTab() {
                       </div>
                     </div>
                   </div>
-
-                  {selectedOrder.notes && (
-                    <div className="mt-4">
-                      <h4 className="font-medium mb-2">Notes</h4>
-                      <div className="bg-muted p-3 rounded-md">
-                        <p>{selectedOrder.notes}</p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

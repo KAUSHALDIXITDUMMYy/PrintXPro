@@ -1,14 +1,12 @@
 export function ProductGridSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="bg-card rounded-lg overflow-hidden shadow-sm animate-pulse">
-          <div className="aspect-square bg-muted"></div>
-          <div className="p-4 space-y-3">
-            <div className="h-5 bg-muted rounded w-3/4"></div>
-            <div className="h-4 bg-muted rounded w-1/4"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-            <div className="h-10 bg-muted rounded w-full"></div>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3 p-4">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-3 pb-3">
+          <div className="w-full aspect-square bg-[#f4f0f0] rounded-lg animate-pulse"></div>
+          <div className="space-y-2">
+            <div className="h-4 bg-[#f4f0f0] rounded w-3/4 animate-pulse"></div>
+            <div className="h-4 bg-[#f4f0f0] rounded w-1/2 animate-pulse"></div>
           </div>
         </div>
       ))}
