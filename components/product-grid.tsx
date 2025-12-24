@@ -21,7 +21,7 @@ export async function ProductGrid({ category, minPrice, maxPrice, rating, search
     return (
       <div className="text-center py-12">
         <h3 className="text-lg font-medium mb-2 text-[#181111]">No products found</h3>
-        <p className="text-[#886364] mb-6">Try adjusting your search or filter criteria.</p>
+        <p className="text-[#886364] mb-6">Try adjusting your search or filter criteria Please .</p>
       </div>
     )
   }

@@ -123,7 +123,7 @@ export function ProductDetails({ product }: ProductDetailsProps) {
                 <div>
                   <h4 className="text-[#181111] font-medium">Quality Guarantee</h4>
                   <p className="text-[#886364] text-sm mt-1">
-                    All our products are made with premium materials and undergo strict quality control.
+                    All of our products are made with premium materials and undergo strict quality control.
                   </p>
                 </div>
               </div>
