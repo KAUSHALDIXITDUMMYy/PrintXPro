@@ -1,285 +1,336 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { useToast } from "@/components/ui/use-toast"
-import { addProduct, updateProduct, uploadProductImage } from "@/lib/firebase/products"
-import { X, Upload, Loader2 } from "lucide-react"
-import type { Product } from "@/lib/types"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { saveProduct } from "@/lib/firebase/products"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import type { FirebaseStorage } from "firebase/storage"
+import { Loader2, Image as ImageIcon } from "lucide-react"
+import { Product } from "@/lib/types"
+import { z } from "zod"
+
+const productSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  brand: z.string().min(1, "Brand is required"),
+  price: z.number().min(0, "Price must be positive"),
+  description: z.string().min(1, "Description is required"),
+  materials: z.array(z.string()).min(1, "At least one material is required"),
+  stock: z.number().min(0, "Stock must be positive"),
+  category: z.string().min(1, "Category is required"),
+  rating: z.number().min(0).max(5, "Rating must be between 0 and 5"),
+  featured: z.boolean().default(false),
+})
+
+type ProductFormData = z.infer<typeof productSchema>
 
 interface ProductFormProps {
   product?: Product
   onSaved: () => void
+  storage: FirebaseStorage
 }
 
-export function ProductForm({ product, onSaved }: ProductFormProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    brand: "PrintXpro.com",
-    price: 0,
-    description: "",
-    materials: ["PLA+"],
-    imageUrl: "",
-    stock: 0,
-    category: "",
-    rating: 5,
-    featured: false,
+export function ProductForm({ product, onSaved, storage }: ProductFormProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [imagePreview, setImagePreview] = useState(product?.imageUrl || "")
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [materials, setMaterials] = useState<string>(product?.materials?.join(", ") || "")
+
+  const form = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: product?.name || "",
+      brand: product?.brand || "",
+      price: product?.price || 0,
+      description: product?.description || "",
+      materials: product?.materials || [],
+      stock: product?.stock || 0,
+      category: product?.category || "",
+      rating: product?.rating || 0,
+      featured: product?.featured || false,
+    },
   })
 
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const { toast } = useToast()
-
-  useEffect(() => {
-    if (product) {
-      setFormData({
-        name: product.name,
-        brand: product.brand,
-        price: product.price,
-        description: product.description,
-        materials: product.materials,
-        imageUrl: product.imageUrl,
-        stock: product.stock,
-        category: product.category,
-        rating: product.rating,
-        featured: product.featured || false,
-      })
-      setImagePreview(product.imageUrl)
-    }
-  }, [product])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "price" || name === "stock" ? Number(value) : value,
-    }))
-  }
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleSwitchChange = (name: string, checked: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: checked,
-    }))
-  }
-
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
+    const file = e.target.files?.[0]
+    if (file) {
       setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
 
-  const handleRemoveImage = () => {
-    setImageFile(null)
-    setImagePreview(product ? product.imageUrl : null)
+  const uploadImage = async (file: File, productId: string) => {
+    const storageRef = ref(storage, `products/${productId}/${file.name}`)
+    await uploadBytes(storageRef, file)
+    return await getDownloadURL(storageRef)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const onSubmit = async (data: ProductFormData) => {
     try {
-      setIsSubmitting(true)
-
-      let imageUrl = formData.imageUrl
-
-      // Upload image if a new one is selected
+      setIsLoading(true)
+      
+      let imageUrl = product?.imageUrl || ""
+      
+      // Upload new image if one was selected
       if (imageFile) {
-        const productId = product ? product.id : `temp-${Date.now()}`
-        imageUrl = await uploadProductImage(imageFile, productId)
+        const productId = product?.id || Date.now().toString()
+        imageUrl = await uploadImage(imageFile, productId)
       }
-
-      const productData = {
-        ...formData,
+      
+      // Delete old image if it was replaced
+      if (product?.imageUrl && imageFile && product.imageUrl !== imageUrl) {
+        const oldImageRef = ref(storage, product.imageUrl)
+        await deleteObject(oldImageRef).catch(console.error)
+      }
+      
+      const materialsArray = materials.split(",").map(m => m.trim()).filter(m => m)
+      
+      const productData: Product = {
+        ...data,
+        materials: materialsArray,
         imageUrl,
+        id: product?.id || Date.now().toString(),
+        createdAt: product?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        reviewCount: product?.reviewCount || 0
       }
-
-      if (product) {
-        // Update existing product
-        await updateProduct(product.id, productData)
-        toast({
-          title: "Product updated",
-          description: "The product has been successfully updated.",
-        })
-      } else {
-        // Add new product
-        await addProduct(productData)
-        toast({
-          title: "Product added",
-          description: "The product has been successfully added.",
-        })
-      }
-
+      
+      await saveProduct(productData)
       onSaved()
     } catch (error) {
       console.error("Error saving product:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save product. Please try again.",
-        variant: "destructive",
-      })
     } finally {
-      setIsSubmitting(false)
+      setIsLoading(false)
     }
   }
 
-  const categories = ["Toys", "Decor", "Industrial", "Personalized", "Gadgets", "Art"]
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Product Name</Label>
-            <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="price">Price (₹)</Label>
-            <Input
-              id="price"
-              name="price"
-              type="number"
-              min="0"
-              step="1"
-              value={formData.price}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="stock">Stock</Label>
-            <Input
-              id="stock"
-              name="stock"
-              type="number"
-              min="0"
-              step="1"
-              value={formData.stock}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="rating">Rating</Label>
-            <Select value={formData.rating.toString()} onValueChange={(value) => handleSelectChange("rating", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a rating" />
-              </SelectTrigger>
-              <SelectContent>
-                {[5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5, 1].map((rating) => (
-                  <SelectItem key={rating} value={rating.toString()}>
-                    {rating}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="featured"
-              checked={formData.featured}
-              onCheckedChange={(checked) => handleSwitchChange("featured", checked)}
-            />
-            <Label htmlFor="featured">Featured Product</Label>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={5}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Product Image</Label>
-            <div className="border-2 border-dashed rounded-lg p-4 text-center">
-              {imagePreview ? (
-                <div className="relative">
-                  <img
-                    src={imagePreview || "/placeholder.svg"}
-                    alt="Product preview"
-                    className="mx-auto h-48 object-contain"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-0 right-0 h-6 w-6"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="py-4">
-                  <Upload className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-sm text-muted-foreground">Drag and drop or click to upload</p>
-                </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Product Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter product name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <Input id="image" type="file" accept="image/*" onChange={handleImageChange} className="mt-4" />
+            />
+
+            <FormField
+              control={form.control}
+              name="brand"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Brand</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter brand name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Enter product description"
+                      className="min-h-[100px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormItem>
+              <FormLabel>Materials (comma separated)</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Cotton, Polyester, etc."
+                  value={materials}
+                  onChange={(e) => setMaterials(e.target.value)}
+                />
+              </FormControl>
+              <FormMessage>{form.formState.errors.materials?.message}</FormMessage>
+            </FormItem>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <FormLabel>Product Image</FormLabel>
+              <div className="mt-2 flex items-center gap-4">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                  <Button type="button" variant="outline">
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    {imagePreview ? "Change Image" : "Upload Image"}
+                  </Button>
+                </label>
+                {imagePreview && (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Product preview"
+                      className="h-16 w-16 object-cover rounded"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
+
+            <FormField
+              control={form.control}
+              name="price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Price</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="Enter price"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="stock"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stock Quantity</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="Enter stock quantity"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="clothing">Clothing</SelectItem>
+                      <SelectItem value="electronics">Electronics</SelectItem>
+                      <SelectItem value="home">Home</SelectItem>
+                      <SelectItem value="beauty">Beauty</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="rating"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rating (0-5)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      placeholder="Enter rating"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="featured"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Featured Product</FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
           </div>
         </div>
-      </div>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" onClick={onSaved}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>Save Product</>
-          )}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {product ? "Update Product" : "Add Product"}
+          </Button>
+        </div>
+      </form>
+    </Form>
   )
 }

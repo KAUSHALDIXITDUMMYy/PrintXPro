@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +18,8 @@ import { getProducts, deleteProduct } from "@/lib/firebase/products"
 import { formatCurrency } from "@/lib/utils"
 import { ProductForm } from "@/components/admin/product-form"
 import { Pencil, Trash2, Plus, Search } from "lucide-react"
-import type { Product } from "@/lib/types"
+import { Product } from "@/lib/types"
+import { getStorage, ref, deleteObject } from "firebase/storage"
 
 export function AdminProductsTab() {
   const [products, setProducts] = useState<Product[]>([])
@@ -29,7 +29,9 @@ export function AdminProductsTab() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
+  const storage = getStorage()
 
   useEffect(() => {
     fetchProducts()
@@ -54,8 +56,7 @@ export function AdminProductsTab() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // Filter products client-side for simplicity
-    // For a real app, you might want to use server-side filtering
+    // Filter products client-side
   }
 
   const handleAddProduct = () => {
@@ -77,6 +78,13 @@ export function AdminProductsTab() {
     if (!selectedProduct) return
 
     try {
+      setIsDeleting(true)
+      // Delete image from storage if it exists
+      if (selectedProduct.imageUrl) {
+        const imageRef = ref(storage, selectedProduct.imageUrl)
+        await deleteObject(imageRef).catch(console.error)
+      }
+      
       await deleteProduct(selectedProduct.id)
       setProducts(products.filter((p) => p.id !== selectedProduct.id))
       toast({
@@ -91,6 +99,8 @@ export function AdminProductsTab() {
         description: "Failed to delete product. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -104,7 +114,8 @@ export function AdminProductsTab() {
     ? products.filter(
         (product) =>
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.description.toLowerCase().includes(searchQuery.toLowerCase()),
+          product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.brand.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : products
 
@@ -139,29 +150,43 @@ export function AdminProductsTab() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Image</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Brand</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Rating</TableHead>
+                <TableHead>Featured</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredProducts.map((product) => (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      {product.imageUrl && (
+                        <img 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="h-10 w-10 object-cover rounded"
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell>{product.brand}</TableCell>
                     <TableCell>{product.category}</TableCell>
                     <TableCell>{formatCurrency(product.price)}</TableCell>
                     <TableCell>{product.stock}</TableCell>
-                    <TableCell>{product.rating}</TableCell>
+                    <TableCell>{product.rating} ({product.reviewCount || 0})</TableCell>
+                    <TableCell>{product.featured ? "Yes" : "No"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" onClick={() => handleEditProduct(product)}>
@@ -189,7 +214,10 @@ export function AdminProductsTab() {
             <DialogTitle>Add New Product</DialogTitle>
             <DialogDescription>Fill in the details to add a new product to your store.</DialogDescription>
           </DialogHeader>
-          <ProductForm onSaved={handleProductSaved} />
+          <ProductForm 
+            onSaved={handleProductSaved} 
+            storage={storage}
+          />
         </DialogContent>
       </Dialog>
 
@@ -200,7 +228,13 @@ export function AdminProductsTab() {
             <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>Update the product details.</DialogDescription>
           </DialogHeader>
-          {selectedProduct && <ProductForm product={selectedProduct} onSaved={handleProductSaved} />}
+          {selectedProduct && (
+            <ProductForm 
+              product={selectedProduct} 
+              onSaved={handleProductSaved} 
+              storage={storage}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -210,15 +244,15 @@ export function AdminProductsTab() {
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this product? This action cannot be undone.
+              Are you sure you want to delete "{selectedProduct?.name}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
-              Delete
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

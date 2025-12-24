@@ -37,35 +37,44 @@ export default function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#171212]"></div>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-[60vh] flex flex-col items-center justify-center">
-        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Authentication Required</h1>
-        <p className="text-muted-foreground mb-6 text-center max-w-md">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <AlertCircle className="h-16 w-16 text-[#82686a] mb-4" />
+        <h1 className="text-2xl font-bold mb-2 text-[#171212]">Authentication Required</h1>
+        <p className="text-[#82686a] mb-6 text-center max-w-md">
           You need to be logged in to access the admin dashboard.
         </p>
-        <Button onClick={() => router.push("/auth/login?redirect=/admin")}>Sign In</Button>
+        <Button 
+          onClick={() => router.push("/auth/login?redirect=/admin")}
+          className="bg-[#f4f1f1] text-[#171212] hover:bg-[#e4dddd]"
+        >
+          Sign In
+        </Button>
       </div>
     )
   }
 
   if (!isAdmin) {
     return (
-      <div className="container mx-auto px-4 py-12 min-h-[60vh] flex flex-col items-center justify-center">
-        <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-        <p className="text-muted-foreground mb-6 text-center max-w-md">
-          You don't have permission to access the admin dashboard. Only users with admin privileges can access this
-          page.
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white p-6">
+        <AlertCircle className="h-16 w-16 text-[#82686a] mb-4" />
+        <h1 className="text-2xl font-bold mb-2 text-[#171212]">Access Denied</h1>
+        <p className="text-[#82686a] mb-6 text-center max-w-md">
+          You don't have permission to access the admin dashboard. Only users with admin privileges can access this page.
         </p>
-        <Button onClick={() => router.push("/")}>Back to Home</Button>
+        <Button 
+          onClick={() => router.push("/")}
+          className="bg-[#f4f1f1] text-[#171212] hover:bg-[#e4dddd]"
+        >
+          Back to Home
+        </Button>
       </div>
     )
   }
